@@ -58,9 +58,9 @@ const BORN = ['Chat', 'Changes', 'Commits', 'Files', 'Preview', 'Graph']
 
 describe('the view set', () => {
   it('is exactly these views, Assets included (spec 2026-10-22-html-artifacts-and-impact)', () => {
-    expect(VIEW_IDS).toEqual(['session', 'changes', 'commits', 'files', 'browser', 'graph', 'assets', 'terminal'])
+    expect(VIEW_IDS).toEqual(['session', 'changes', 'commits', 'files', 'browser', 'graph', 'assets', 'extensions', 'terminal'])
     // Assets sits after Preview and before Terminal on the strip.
-    expect(FIXED_VIEW_ORDER).toEqual(['session', 'changes', 'commits', 'files', 'graph', 'browser', 'assets', 'terminal'])
+    expect(FIXED_VIEW_ORDER).toEqual(['session', 'changes', 'commits', 'files', 'graph', 'browser', 'assets', 'extensions', 'terminal'])
     expect(VIEW_PATHS.assets).toBe('assets')
     expect(viewLabel('assets')).toBe('Assets')
     expect(isViewId('assets')).toBe(true)
@@ -82,8 +82,9 @@ describe('defaultState', () => {
     expect(DEFAULT_LAYOUT_NAME).toBe('Chat')
     expect(state.active).toBe(DEFAULT_LAYOUT_NAME)
     expect(names(state)).toEqual(BORN)
-    // Terminal and Assets are not pre-seeded: their cards are minted on first use.
-    const seeded = VIEW_IDS.filter((view) => view !== 'terminal' && view !== 'assets')
+    // Terminal and Extensions are not pre-seeded: their cards are minted on first use — most
+    // projects have no extension contributing a task panel (spec 2026-11-07-extension-placements).
+    const seeded = VIEW_IDS.filter((view) => view !== 'terminal' && view !== 'extensions' && view !== 'assets')
     expect(names(state)).toEqual(seeded.map(viewLabel))
     // Each card is one full-width column of the view it is named after — which is exactly what
     // makes it the plain layout a FIXED card stands in for.
@@ -804,5 +805,13 @@ describe('the terminal view (main)', () => {
     const revived = reviveState(JSON.parse(JSON.stringify(placed.state)))
     expect(revived.active).toBe(placed.name)
     expect(findLayout(revived, placed.name)).toEqual(layout)
+  })
+})
+
+import * as layoutState from './layout-state'
+
+describe('view ids', () => {
+  it('match the contract\'s workspaceViewSchema exactly (both lists are hand-maintained)', () => {
+    expect([...layoutState.VIEW_IDS].sort()).toEqual([...workspaceViewSchema.options].sort())
   })
 })

@@ -135,6 +135,7 @@ export function ProjectGroups({
   inboxCount = null,
   skillsUpdateAvailable = false,
   newNavItems = NO_NEW_NAV_ITEMS,
+  extensionPanels,
 }: {
   projects: ProjectListEntry[]
   /** The project a flat, unprefixed URL resolves to — so the boot project is the one that
@@ -148,6 +149,8 @@ export function ProjectGroups({
   skillsUpdateAvailable?: boolean
   /** Nav items (`to`) whose feature shipped since the user started — the active group's dot. */
   newNavItems?: ReadonlySet<string>
+  /** The ACTIVE project's extension sidebar panels, rendered under its nav. */
+  extensionPanels?: React.ReactNode
 }) {
   const { pathname } = useLocation()
   // The shell renders outside the routes, so there is no `ProjectScopeProvider` above it — the
@@ -297,6 +300,7 @@ export function ProjectGroups({
       inboxCount={inboxCount}
       skillsUpdateAvailable={skillsUpdateAvailable}
       newNavItems={newNavItems}
+      extensionPanels={project.id === scopedProjectId ? extensionPanels : undefined}
       showTokens={metricVisibility.tokens}
       showCost={metricVisibility.cost}
       sortable={sortable}
@@ -505,6 +509,7 @@ function ProjectGroup({
   inboxCount,
   skillsUpdateAvailable,
   newNavItems,
+  extensionPanels,
   showTokens,
   showCost,
   sortable,
@@ -531,6 +536,8 @@ function ProjectGroup({
   inboxCount: number | null
   skillsUpdateAvailable: boolean
   newNavItems: ReadonlySet<string>
+  /** Only the active group receives these; the others pass nothing. */
+  extensionPanels?: React.ReactNode
   showTokens: boolean
   showCost: boolean
   /** The registry holds more than one project AND the ui-state cache is populated, so a drag has
@@ -862,6 +869,7 @@ function ProjectGroup({
               )
             })}
           </nav>
+          {extensionPanels}
 
           {/* This group's own project, explicitly: a collapsed sidebar can show six projects at
               once, and #42 means a different pull request in each of them. */}

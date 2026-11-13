@@ -13,6 +13,7 @@ import { HostUsageWidget } from '@/components/host-usage-widget'
 import { ProviderBannerContainer } from '@/components/provider-banner-container'
 import { ConnectionBanner } from '@/components/cache-status'
 import { TelemetryConsentBanner } from '@/components/telemetry-consent'
+import { SidebarExtensionPanels } from '@/components/extensions/sidebar-panels'
 import { ProjectGroups } from '@/components/project-groups'
 import { TaskQuickListContainer } from '@/components/task-quick-list'
 import { ToolsMenu } from '@/components/tools-menu'
@@ -189,6 +190,8 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
   // ever pays for a sample it cannot show.
   const hostWidget = useMemo(() => <HostUsageWidget />, [])
   const whatsNew = useMemo(() => <WhatsNewNavItem />, [])
+  // The active project's extension sidebar sections; `default` is the boot project.
+  const extensionPanels = useMemo(() => <SidebarExtensionPanels projectId={projectId ?? 'default'} />, [projectId])
   const managerSidebar = useMemo(() => <ManagerSidebar />, [])
   const managerRail = useMemo(() => <ManagerRail />, [])
   const projectGroups = useMemo(
@@ -205,6 +208,7 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
           inboxCount={todos.data?.length ?? null}
           skillsUpdateAvailable={skillsUpdateAvailable}
           newNavItems={newNavItems}
+          extensionPanels={extensionPanels}
         />
       ) : undefined,
     [
@@ -214,6 +218,7 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
       todos.data?.length,
       skillsUpdateAvailable,
       newNavItems,
+      extensionPanels,
     ],
   )
   // The active project's forge, not the boot folder's (#1410) — feeds the flat nav and the note.
@@ -261,6 +266,7 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
         // Present only in a multi-project workspace; `AppShell` renders the flat nav and the
         // quick-list above whenever this slot is absent.
         projectGroups={projectGroups}
+        extensionPanels={extensionPanels}
         toolsMenu={toolsMenu}
         managersAvailable={managersAvailable}
         managerAttention={managersAttention(managers.data?.managers)}
