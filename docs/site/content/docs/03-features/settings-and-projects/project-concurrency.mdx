@@ -8,14 +8,13 @@ related:
     - architecture/cli-and-configuration
 sources:
   - label: "Implementation"
-    path: packages/web/src/routes/settings/projects-section.tsx
-    line: 758
-    commit: 0355f9c9e46373c342dcb8a4d466df48e3f90d3e
+    path: packages/cezar/src/workspace/semaphore.ts
+    line: 348
   - label: "Specification"
     path: .ai/specs/2026-07-22-per-project-concurrency.md
     commit: 0355f9c9e46373c342dcb8a4d466df48e3f90d3e
 ---
-The project limit controls how many of its tasks can run together. The global limit on parallel tasks still applies.
+The project limit controls how many of its tasks can run together. A project uses one active task by default. Different projects can run at the same time until they reach the global limit.
 
 ## Where to find it
 
@@ -26,4 +25,4 @@ Settings → Global → Projects → Max parallel tasks for the project
 1. Open project settings and set the parallel task limit.
 2. Check how many tasks are running and how many are waiting in the queue.
 
-> **Good to know**: Raising the project limit does not reserve extra resources or increase the global limit.
+> **Good to know**: Leave the project limit empty to use the default of 1. Raising it does not reserve extra resources or increase the global limit. Tasks wait in the queue when their project's slot is occupied. A live agent waiting for input releases its global slot but keeps its project slot, so replying cannot overlap another agent in the same project.

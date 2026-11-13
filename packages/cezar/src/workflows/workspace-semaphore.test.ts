@@ -186,6 +186,28 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     expect(a.store.getRun(third.id)?.status).toBe('done');
   }, 45_000);
 
+  it('defaults every project to one active AI execution while different projects run concurrently', async () => {
+    const semaphore = new WorkspaceSemaphore({ initial: { maxParallel: 3 } });
+    const a = project('cez-wsem-default-project-a-', semaphore);
+    const b = project('cez-wsem-default-project-b-', semaphore);
+
+    const a1 = a.manager.startRun(SLOW, { task: 'A owns its project slot' });
+    const a2 = a.manager.startRun(INSTANT, { task: 'A waits without failing' });
+    const b1 = b.manager.startRun(SLOW, { task: 'B runs concurrently' });
+    await waitFor(
+      () => a.store.getRun(a1.id)?.status === 'running' && b.store.getRun(b1.id)?.status === 'running',
+      'different projects to run concurrently',
+    );
+    expect(a.store.getRun(a2.id)?.status).toBe('queued');
+
+    await waitFor(
+      () => settled.includes(a.store.getRun(a2.id)?.status ?? ''),
+      'the waiting A run to start after its project slot is released',
+      30_000,
+    );
+    expect(a.store.getRun(a2.id)?.status).toBe('done');
+  }, 45_000);
+
   // #1524: the self-update dialog read the boot project's store only, so tasks in any other
   // project — or every task, when cezar booted outside a project — counted as zero.
   it('the self-update status counts running and queued runs in every project', async () => {
@@ -214,7 +236,7 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
 
   it('a slot freed in one project starts the run queued in ANOTHER project', async () => {
     // The starvation regression: `RunManager` only ever pumps ITSELF, so a
-    // freed slot used to reach exactly one queue. With both slots held by A,
+    // freed slot used to reach exactly one queue. With both slots held by A and C,
     // B's queued run sat at `queued` while A's runs finished one after
     // another — it only ever started if B happened to start or finish a run of
     // its own. The fix routes every slot-freeing transition through
@@ -222,21 +244,22 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     const semaphore = new WorkspaceSemaphore({ initial: { maxParallel: 2 } });
     const a = project('cez-wsem-cross-a-', semaphore);
     const b = project('cez-wsem-cross-b-', semaphore);
+    const c = project('cez-wsem-cross-c-', semaphore);
 
     const slow1 = a.manager.startRun(SLOW, { task: 'saturate 1' });
-    const slow2 = a.manager.startRun(SLOW, { task: 'saturate 2' });
+    const slow2 = c.manager.startRun(SLOW, { task: 'saturate 2' });
     await waitFor(
       () =>
         a.store.getRun(slow1.id)?.status === 'running' &&
-        a.store.getRun(slow2.id)?.status === 'running',
-      'A to saturate the workspace cap',
+        c.store.getRun(slow2.id)?.status === 'running',
+      'A and C to saturate the workspace cap',
     );
 
     const queued = b.manager.startRun(INSTANT, { task: 'queued in the OTHER project' });
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(b.store.getRun(queued.id)?.status).toBe('queued');
 
-    // Nothing else happens in B — the only event is A's runs settling.
+    // Nothing else happens in B — the only event is another project's run settling.
     await waitFor(
       () => settled.includes(b.store.getRun(queued.id)?.status ?? ''),
       "B's queued run to start once A frees a slot",
@@ -273,6 +296,7 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     const semaphore = new WorkspaceSemaphore({ initial: { maxParallel: 2 } });
     const a = project('cez-wsem-347a-', semaphore);
     const b = project('cez-wsem-347b-', semaphore);
+    const c = project('cez-wsem-347c-', semaphore);
 
     // B's agent run parks at `waiting` (markerless mock turn-end) — and by the
     // #347 rule gives its slot back while parked.
@@ -282,14 +306,14 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
       "B's run to park at waiting",
     );
 
-    // Project A saturates the workspace cap: 2 running holders, busy == cap.
+    // Projects A and C saturate the workspace cap: one running holder each, busy == cap.
     const slow1 = a.manager.startRun(SLOW, { task: 'saturate 1' });
-    const slow2 = a.manager.startRun(SLOW, { task: 'saturate 2' });
+    const slow2 = c.manager.startRun(SLOW, { task: 'saturate 2' });
     await waitFor(
       () =>
         a.store.getRun(slow1.id)?.status === 'running' &&
-        a.store.getRun(slow2.id)?.status === 'running',
-      'A to saturate the cap',
+        c.store.getRun(slow2.id)?.status === 'running',
+      'A and C to saturate the cap',
     );
 
     // The #347 exemption: the message goes straight into the open session —
@@ -301,9 +325,9 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     ).toBe(true);
     const resumed = b.store.getRun(waitingRun.id);
     expect(resumed?.status).toBe('running'); // resumed instantly, cap exceeded by design
-    // ...while A's saturating runs are genuinely still holding both slots.
+    // ...while A and C's saturating runs are genuinely still holding both slots.
     expect(a.store.getRun(slow1.id)?.status).toBe('running');
-    expect(a.store.getRun(slow2.id)?.status).toBe('running');
+    expect(c.store.getRun(slow2.id)?.status).toBe('running');
 
     // The resumed turn completes and re-parks — the exemption is a moment of
     // over-cap, not a leak.
@@ -338,7 +362,9 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(a.store.getRun(a2.id)?.status).toBe('queued'); // blocked by A's own cap, not the workspace
 
-    // B inherits the workspace cap (no override) — it runs two concurrently.
+    // An explicit B override keeps the pre-existing configurable behavior available.
+    projectLimits.set(realpathSync(b.root), 2);
+    await semaphore.refresh();
     const b1 = b.manager.startRun(SLOW, { task: 'B slot 1' });
     const b2 = b.manager.startRun(SLOW, { task: 'B slot 2' });
     await waitFor(
@@ -494,7 +520,7 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     ).toBe(false);
   });
 
-  it('#347 with a per-project cap: a waiting run on the capped project still resumes immediately', async () => {
+  it('#347 with a per-project cap: a waiting run reserves the project slot and still resumes immediately', async () => {
     const projectLimits = new Map<string, number>();
     const semaphore = new WorkspaceSemaphore({
       load: () =>
@@ -506,31 +532,41 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     projectLimits.set(realpathSync(rootA), 1);
     await semaphore.refresh();
 
-    // Park an agent run at `waiting` (holds no slot per #347), then saturate A's
-    // per-project cap of 1 with a running holder.
+    // Park an agent run at `waiting`. It releases the shared workspace slot per
+    // #347, but keeps the project's only reservation because a message can
+    // resume its live session without passing through pump().
     const waitingRun = a.manager.startRun(AGENT, { task: 'park and wait', worktree: false });
     await waitFor(() => a.store.getRun(waitingRun.id)?.status === 'waiting', 'the agent run to park');
     const holder = a.manager.startRun(SLOW, { task: 'occupy the single per-project slot' });
-    await waitFor(() => a.store.getRun(holder.id)?.status === 'running', "the holder to take A's only slot");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(a.store.getRun(holder.id)?.status).toBe('queued');
 
-    // Even at A's per-project cap, the resume bypasses pump() — straight into the
-    // open session, no slot acquire — so the ceiling can never strand it.
+    // The reservation lets the parked session resume immediately without
+    // overlapping another agent in the same project.
     expect(a.manager.sendMessage(waitingRun.id, [{ type: 'text', text: 'carry on' }])).toBe(true);
     expect(a.store.getRun(waitingRun.id)?.status).toBe('running');
-    expect(a.store.getRun(holder.id)?.status).toBe('running'); // holder keeps the single slot
+    expect(a.store.getRun(holder.id)?.status).toBe('queued');
     await waitFor(
       () => a.store.getRun(waitingRun.id)?.status === 'waiting',
       'the resumed run to re-park after its turn',
     );
+    expect(a.store.getRun(holder.id)?.status).toBe('queued');
+
+    // Waiting is not failure: once the live owner is explicitly finished, the
+    // queued task takes the same existing project slot.
+    expect(a.manager.finish(waitingRun.id)).toBe(true);
+    await waitFor(() => a.store.getRun(holder.id)?.status === 'running', 'the queued holder to take the released slot');
   }, 45_000);
 
   it('refresh() applies a raised cap without a restart: the queued run starts', async () => {
-    let limits = { maxParallel: 1, memoryLimitMb: null as number | null };
+    const projectLimits = new Map<string, number>();
+    let limits = { maxParallel: 1, memoryLimitMb: null as number | null, projectLimits };
     const semaphore = new WorkspaceSemaphore({
       load: () => Promise.resolve({ ...limits }),
-      initial: { maxParallel: 1 },
+      initial: { maxParallel: 1, projectLimits },
     });
     const a = project('cez-wsem-refresh-', semaphore);
+    projectLimits.set(realpathSync(a.root), 2);
 
     const holder = a.manager.startRun(SLOW, { task: 'hold the only slot' });
     const queued = a.manager.startRun(INSTANT, { task: 'wait for capacity' });
@@ -541,7 +577,7 @@ describe('workspace semaphore across RunManagers (step 2.5)', () => {
     // The workspace cache hook (boot / PUT /api/v1/workspace/config, step 2.7):
     // bump the config, refresh — the pump fires and the queued run proceeds
     // while the holder is still running. No process restart involved.
-    limits = { maxParallel: 2, memoryLimitMb: null };
+    limits = { maxParallel: 2, memoryLimitMb: null, projectLimits };
     await semaphore.refresh();
     await waitFor(
       () => settled.includes(a.store.getRun(queued.id)?.status ?? ''),

@@ -22,6 +22,7 @@ import {
 } from './claude-cli-runner.ts';
 import { recordOwnSignal, resetOwnSignalsForTests } from './process-signals.ts';
 import type { UiEvent } from './ui-events.ts';
+import type { ExecutorFailure } from './executor-failure.ts';
 
 /** Only the escalation tests below swap the child out; every other test in this
  *  file keeps spawning its real stub binary through the untouched `spawn`. */
@@ -486,10 +487,18 @@ describe('claude result error with a JSON envelope', () => {
     writeFileSync(bin, `#!/usr/bin/env node\nconsole.log(${JSON.stringify(JSON.stringify({ type: 'result', is_error: true, result }))});\nprocess.exit(1);\n`, { mode: 0o755 });
     try {
       const errors: string[] = [];
+      const failures: ExecutorFailure[] = [];
       await new ClaudeCliRunner({ bin, timeoutMs: 5000 })
-        .run({ cwd: root, userPrompt: 'work' }, (event) => { if (event.type === 'error') errors.push(event.message); })
+        .run({
+          cwd: root,
+          userPrompt: 'work',
+          executorAccountId: 'default',
+          onExecutorFailure: (failure) => failures.push(failure),
+        }, (event) => { if (event.type === 'error') errors.push(event.message); })
         .catch(() => undefined);
       expect(errors).toContain('API Error: 400 [400]: invalid_request_error: model gpt-5 is not available');
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatchObject({ executor: { provider: 'claude', accountId: 'default' } });
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

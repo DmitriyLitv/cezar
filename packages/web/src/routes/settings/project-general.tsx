@@ -104,15 +104,14 @@ export function ProjectGeneral({ capabilities }: { capabilities?: Partial<Pick<C
             title="Max parallel tasks"
             hint={
               config.data
-                ? `How many of this project's tasks may run at once — leave it empty to inherit the workspace limit. The workspace limit (${config.data.resources.maxParallel}) still applies as an overall ceiling, so a higher value here has no extra effect until that one is raised.`
-                : "How many of this project's tasks may run at once — leave it empty to inherit the workspace limit. The workspace limit still applies as an overall ceiling."
+                ? `How many of this project's tasks may run at once — the empty default is 1. The workspace limit (${config.data.resources.maxParallel}) still applies as an overall ceiling, so a higher value here has no extra effect until that one is raised.`
+                : "How many of this project's tasks may run at once — the empty default is 1. The workspace limit still applies as an overall ceiling."
             }
           >
             {config.data ? (
-              <MaxParallelStepper project={project} workspaceMax={config.data.resources.maxParallel} />
+              <MaxParallelStepper project={project} />
             ) : (
-              // The stepper's "Inherit (N)" placeholder has to name N, and guessing it would be
-              // the one thing this control must not do.
+              // The workspace cap still explains whether an explicit project value can take effect.
               <p className="text-ui text-soft-foreground">Loading the workspace limit…</p>
             )}
           </SettingsField>

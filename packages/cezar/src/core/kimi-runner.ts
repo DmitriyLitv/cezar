@@ -31,6 +31,7 @@ import {
   type KimiUiMapperState,
   type KimiUiMapping,
 } from './kimi-ui-mapper.ts';
+import { emitExecutorFailure } from './executor-failure.ts';
 
 const DEFAULT_TIMEOUT_MS = 30 * 60_000;
 /** `initialize` / `session/new|resume` / `session/set_config_option` are handshakes: bounded,
@@ -323,7 +324,10 @@ class KimiSession implements AgentSession {
     if (this.autoEndTimer) clearTimeout(this.autoEndTimer);
     this.stdinOpen = false;
 
-    if (this.spawnFailed) throw this.spawnFailed;
+    if (this.spawnFailed) {
+      emitExecutorFailure(this.spec.onExecutorFailure, { provider: 'kimi', ...(this.spec.executorAccountId ? { accountId: this.spec.executorAccountId } : {}), message: this.spawnFailed.message });
+      throw this.spawnFailed;
+    }
     if (sessionError) return this.failSession(sessionError.message);
 
     const exitedBadly =
@@ -682,6 +686,9 @@ class KimiSession implements AgentSession {
   // ---- emission -----------------------------------------------------------
 
   private emit(event: AgentEvent): void {
+    if (event.type === 'error') {
+      emitExecutorFailure(this.spec.onExecutorFailure, { provider: 'kimi', ...(this.spec.executorAccountId ? { accountId: this.spec.executorAccountId } : {}), message: event.message });
+    }
     this.onEvent?.(event);
   }
 

@@ -36,6 +36,7 @@ import {
   toolResultImageBlocks,
   type ClaudeUiMapping,
 } from './claude-ui-mapper.ts';
+import { emitExecutorFailure } from './executor-failure.ts';
 
 /** Default inactivity cap (no stream frame for this long) before SIGTERM → SIGKILL (cf2191f1).
  *  Interactive sessions pass `timeoutMs: 0` to disable it entirely. */
@@ -139,7 +140,9 @@ export class ClaudeCliRunner implements AgentRunner {
     } catch (err) {
       mcpConfig?.cleanup();
       promptFile?.cleanup();
-      throw wrapSpawnError(err, this.bin);
+      const failure = wrapSpawnError(err, this.bin);
+      emitExecutorFailure(spec.onExecutorFailure, { provider: 'claude', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message: failure.message });
+      throw failure;
     }
 
     // A write racing the child's exit reports EPIPE as an async 'error', which the try/catch in
@@ -167,6 +170,12 @@ export class ClaudeCliRunner implements AgentRunner {
         // v2 mapping is best-effort; v1 consumers stay unaffected.
       }
     };
+    const emit = (event: AgentEvent): void => {
+      if (event.type === 'error') {
+        emitExecutorFailure(spec.onExecutorFailure, { provider: 'claude', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message: event.message });
+      }
+      onEvent?.(event);
+    };
 
     const sendMessage = (content: ContentBlock[]): boolean => {
       if (!stdinOpen) return false;
@@ -187,7 +196,7 @@ export class ClaudeCliRunner implements AgentRunner {
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        onEvent?.({ type: 'note', message: `claude: stdin write failed: ${message}` });
+        emit({ type: 'note', message: `claude: stdin write failed: ${message}` });
         return false;
       }
     };
@@ -285,7 +294,7 @@ export class ClaudeCliRunner implements AgentRunner {
           try {
             msg = JSON.parse(line) as ClaudeStreamMessage;
           } catch {
-            onEvent?.({ type: 'note', message: `claude: skipped unparseable stream line: ${truncate(line)}` });
+            emit({ type: 'note', message: `claude: skipped unparseable stream line: ${truncate(line)}` });
             continue;
           }
 
@@ -307,28 +316,28 @@ export class ClaudeCliRunner implements AgentRunner {
           const statusKey = status === undefined ? '' : JSON.stringify(status);
           if (status !== undefined && statusKey !== lastUsageStatus.get(raw.type)) {
             lastUsageStatus.set(raw.type, statusKey);
-            onEvent?.({ type: 'usage-status', status });
+            emit({ type: 'usage-status', status });
           }
 
           let delta = 0;
           try {
-            delta = handleClaudeMessage(mappedMessage, { toolCalls, textChunks, onEvent });
+            delta = handleClaudeMessage(mappedMessage, { toolCalls, textChunks, onEvent: emit });
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            onEvent?.({ type: 'note', message: `claude: skipped malformed event (${msg.type ?? 'unknown'}): ${message}` });
+            emit({ type: 'note', message: `claude: skipped malformed event (${msg.type ?? 'unknown'}): ${message}` });
             continue;
           }
           if (delta > 0) {
             sawUsage = true;
             tokensUsed += delta;
-            onEvent?.({ type: 'token-usage', tokensUsed });
+            emit({ type: 'token-usage', tokensUsed });
           }
 
           if (msg.type === 'result') {
             if (typeof msg.total_cost_usd === 'number' && Number.isFinite(msg.total_cost_usd) && msg.total_cost_usd >= 0) {
-              onEvent?.({ type: 'cost', usd: msg.total_cost_usd });
+              emit({ type: 'cost', usd: msg.total_cost_usd });
             }
-            onEvent?.({ type: 'turn-end' });
+            emit({ type: 'turn-end' });
             if (opts.autoEndAfterFirstTurn && stdinOpen && !autoEndTimer) {
               autoEndTimer = setTimeout(end, AUTO_END_DELAY_MS);
               autoEndTimer.unref?.();
@@ -354,13 +363,16 @@ export class ClaudeCliRunner implements AgentRunner {
       if (eofTermTimer) clearTimeout(eofTermTimer);
       if (eofKillTimer) clearTimeout(eofKillTimer);
 
-      if (spawnFailed) throw spawnFailed;
+      if (spawnFailed) {
+        emitExecutorFailure(spec.onExecutorFailure, { provider: 'claude', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message: spawnFailed.message });
+        throw spawnFailed;
+      }
 
       const text = textChunks.join('\n').trim();
 
       if (timedOut) {
-        onEvent?.({ type: 'error', message: inactivityTimeoutMessage('claude CLI', limitMs, deadline.expiredBy) });
-        onEvent?.({ type: 'done' });
+        emit({ type: 'error', message: inactivityTimeoutMessage('claude CLI', limitMs, deadline.expiredBy) });
+        emit({ type: 'done' });
         return { text, toolCalls, tokensUsed, sessionId: spec.sessionId };
       }
 
@@ -368,11 +380,11 @@ export class ClaudeCliRunner implements AgentRunner {
       // cancel) exits 143/137 — that is our own signal coming back, not an
       // agent failure, so it settles on the normal path with a note (#703).
       if (terminatedByCezar && isSignalTerminationExit(exitCode)) {
-        onEvent?.({
+        emit({
           type: 'note',
           message: `claude CLI did not exit on its own after close; terminated by cezar (code ${exitCode})`,
         });
-        onEvent?.({ type: 'done' });
+        emit({ type: 'done' });
         return { text, toolCalls, tokensUsed, sessionId: spec.sessionId };
       }
 
@@ -382,21 +394,21 @@ export class ClaudeCliRunner implements AgentRunner {
       if (ownSignal) {
         await holdForOwnShutdown();
         const msg = ownShutdownExitMessage('claude CLI', ownSignal, exitCode!);
-        onEvent?.({ type: 'error', message: msg });
+        emit({ type: 'error', message: msg });
         throw new Error(msg);
       }
 
       if (exitCode !== 0 && exitCode !== null) {
         const msg = claudeExitMessage(exitCode, stderrChunks.join(''));
-        onEvent?.({ type: 'error', message: msg });
+        emit({ type: 'error', message: msg });
         throw new Error(msg);
       }
 
       if (!sawUsage) {
-        onEvent?.({ type: 'note', message: 'token usage not reported by claude CLI' });
+        emit({ type: 'note', message: 'token usage not reported by claude CLI' });
       }
 
-      onEvent?.({ type: 'done' });
+      emit({ type: 'done' });
       return { text, toolCalls, tokensUsed, sessionId: spec.sessionId };
     })();
 

@@ -2145,6 +2145,23 @@ export class RunManager {
   }
 
   /**
+   * Slots this manager holds against its project ceiling. Unlike the workspace
+   * cap, a live waiting session keeps its project reservation: messages resume
+   * that session without passing through `pump()`, so admitting another run in
+   * the same project would let two agents execute at once. Different projects
+   * still use `busySlots()` and may fill the shared workspace capacity.
+   *
+   * A dispatch parent parked on its own children remains exempt. Its children
+   * are the work it delegated, and keeping the parent reservation would
+   * deadlock the tree before the first child could start.
+   */
+  private projectBusySlots(): number {
+    let spawnParked = 0;
+    for (const runId of this.unitParents) if (this.monitoring.has(runId)) spawnParked += 1;
+    return this.active.size + this.starting.size - spawnParked;
+  }
+
+  /**
    * Park a run in the monitoring set — the ONE entry, so `unitParents ⊆ monitoring` cannot be
    * half-applied across the two near-identical turn-end handlers (AGENTS.md § "Find every
    * construction site of a shared in-memory object").
@@ -2291,14 +2308,14 @@ export class RunManager {
         const maxParallel = this.semaphore.maxParallel();
         // Per-project ceiling (spec 2026-07-22-per-project-concurrency): this
         // project never runs more than its own configured `maxParallel`; absent
-        // an override it equals the workspace cap, so behavior is unchanged.
+        // an override it defaults to one active or immediately-resumable agent.
         const projectMax = this.semaphore.projectMaxParallel(this.repoRoot);
-        // `waiting` runs don't hold a slot (#347) — see busySlots(). The check
-        // below is the only slot gate: resumes never pass through it. A run
-        // starts only under BOTH the workspace cap and this project's ceiling.
+        // `waiting` runs don't hold a workspace slot (#347), but do reserve a
+        // project slot — see projectBusySlots(). Resumes never pass through this
+        // gate, so the reservation is what preserves the project invariant.
         const capacity = () =>
           this.semaphore.busy() < maxParallel &&
-          this.busySlots() < projectMax &&
+          this.projectBusySlots() < projectMax &&
           (repo !== null || this.busySlots() < 1);
         // The usage-limit hold (spec 2026-08-03-auto-resume-after-usage-limit).
         //
@@ -6000,6 +6017,7 @@ export class RunManager {
           ),
           env: continueProfile.env,
           onUsageWindows: continueProfile.onUsageWindows,
+          executorAccountId: continueProfile.profileId,
           mcpServers: continueMcp,
           model: continueModel,
           reasoningEffort: continuationReasoningEffort,
@@ -8198,6 +8216,7 @@ export class RunManager {
           ),
           env: stepProfile.env,
           onUsageWindows: stepProfile.onUsageWindows,
+          executorAccountId: stepProfile.profileId,
           mcpServers: stepMcp,
           model: backendModel,
           reasoningEffort,

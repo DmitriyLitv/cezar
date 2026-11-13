@@ -420,7 +420,7 @@ describe('Global settings → Projects', () => {
     expect(select).not.toBeNull()
     // Unset projects show an empty field whose placeholder names the live workspace cap (2).
     expect(select!.value).toBe('')
-    expect(select!.placeholder).toBe('Inherit (2)')
+    expect(select!.placeholder).toBe('Default (1)')
 
     // Typing a number PATCHes the per-project ceiling…
     fireEvent.change(select!, { target: { value: '1' } })

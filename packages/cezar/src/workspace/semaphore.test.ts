@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { WorkspaceSemaphore, type SemaphoreParticipant } from './semaphore.ts';
 
@@ -27,10 +27,20 @@ describe('WorkspaceSemaphore', () => {
   it('defaults to the workspace schema defaults before any refresh', () => {
     const sem = new WorkspaceSemaphore();
     expect(sem.maxParallel()).toBe(2);
+    expect(sem.projectMaxParallel('missing-project')).toBe(1);
     expect(sem.idleTimeoutMinutes()).toBe(15);
     expect(sem.memoryLimitMb()).toBeNull();
     expect(sem.monitoringWakeIntervalMinutes()).toBe(5); // #810 — monitoring must self-resume
     expect(sem.busy()).toBe(0);
+  });
+
+  it('keeps explicit per-project overrides without changing the workspace cap', () => {
+    const root = resolve('project-with-override');
+    const sem = new WorkspaceSemaphore({
+      initial: { maxParallel: 6, projectLimits: new Map([[root, 3]]) },
+    });
+    expect(sem.projectMaxParallel(root)).toBe(3);
+    expect(sem.maxParallel()).toBe(6);
   });
 
   describe('idleTimeoutMinutes (#992)', () => {

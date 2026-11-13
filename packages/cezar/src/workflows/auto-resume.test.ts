@@ -591,9 +591,8 @@ describe('a run stopped by a usage limit resumes itself', () => {
   }, 40_000);
 
   it('holds the queue while the account is limited — the rest never start', async () => {
-    // The reported scenario: five tasks, two slots. The two that start hit the limit and become
-    // `scheduled`; the other three must not be walked into the same wall just to be marked
-    // scheduled too. Before the hold existed this drained the whole queue in ~500 ms.
+    // Five tasks share the project's default single slot. The first hits the limit and becomes
+    // `scheduled`; the other four must not be walked into the same wall just to be marked so.
     manager = new RunManager(store, repoRoot, {
       semaphore: new WorkspaceSemaphore({ initial: { maxParallel: 2 } }),
     });
@@ -604,31 +603,30 @@ describe('a run stopped by a usage limit resumes itself', () => {
       manager!.startRun(workflow, { task: `mock:limit task ${n}` }),
     );
 
-    // Two schedules is the whole story: exactly the two that had slots ever ran.
+    // One schedule is the whole story: exactly the task that had the project slot ever ran.
     await expect
       .poll(
         () => runs.filter((r) => store.getRun(r.id)?.autoResumeAt !== undefined).length,
         { timeout: 20_000 },
       )
-      .toBe(2);
+      .toBe(1);
     // Give a stampede every chance to happen before asserting it did not.
     await new Promise((resolve) => setTimeout(resolve, 1_000));
     const started = runs.filter((r) => store.getRun(r.id)?.startedAt !== undefined);
-    expect(started).toHaveLength(2);
-    expect(runs.filter((r) => store.getRun(r.id)?.status === 'queued')).toHaveLength(3);
+    expect(started).toHaveLength(1);
+    expect(runs.filter((r) => store.getRun(r.id)?.status === 'queued')).toHaveLength(4);
 
     // …and the hold is exactly as wide as the limit, with no restart and no timer needed:
-    // cancelling both schedules releases the queue, the next pair takes their slots — and then
-    // promptly holds it again by hitting the same limit, which is the mechanism working rather
-    // than failing. One task never runs at all, which is the entire point.
+    // cancelling the schedule releases the queue, the next task takes the slot — and then promptly
+    // holds it again by hitting the same limit, which is the mechanism working rather than failing.
     for (const run of started) manager.cancelAutoResume(run.id);
     await expect
       .poll(
         () => runs.filter((r) => store.getRun(r.id)?.startedAt !== undefined).length,
         { timeout: 20_000 },
       )
-      .toBe(4);
-    expect(runs.filter((r) => store.getRun(r.id)?.status === 'queued')).toHaveLength(1);
+      .toBe(2);
+    expect(runs.filter((r) => store.getRun(r.id)?.status === 'queued')).toHaveLength(3);
   }, 60_000);
 
   it('holds in-place runs too, which dequeue long before they spawn', async () => {
@@ -684,7 +682,7 @@ describe('a run stopped by a usage limit resumes itself', () => {
     expect(settled.deadline.size + settled.inFlight.size).toBe(0);
   }, 30_000);
 
-  it('lets two resumes on one account both run — they must not hold each other', async () => {
+  it('lets two resumes on one account both make progress through the single project slot', async () => {
     // The deadlock this exists to prevent, seen live: two tasks hit the limit together, both
     // schedule, both fire — and if a resume in flight holds the account, each waits for the
     // other to prove a window neither will ever get to test. Everything in the workspace stops.
@@ -695,7 +693,8 @@ describe('a run stopped by a usage limit resumes itself', () => {
     expect(runs.every((r) => store.getRun(r.id)?.autoResumeAt !== undefined)).toBe(true);
     first.dispose();
 
-    // Both windows reopen together — the exact state the live deadlock started from. The task
+    // Both windows reopen together — the exact state the live deadlock started from. They may run
+    // sequentially under the project invariant, but an in-flight account hold must not strand either. The task
     // text is swapped so the resumed turns can finish instead of re-limiting (that loop is
     // covered above); what is under test is whether they run AT ALL.
     for (const run of runs) {

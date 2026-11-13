@@ -12,6 +12,7 @@ import type { PrivateMcpServer } from './private-mcp.js';
 import { KimiRunner, KimiUsageReader, resolveKimiExecutable } from './kimi-runner.js';
 import { createRunner } from './runner-factory.js';
 import type { UiEvent } from './ui-events.js';
+import type { ExecutorFailure } from './executor-failure.ts';
 
 const MOCK = join(import.meta.dirname, '..', '..', 'scripts', 'mock-kimi-acp.mjs');
 
@@ -226,9 +227,15 @@ describe('a Kimi session that dies or hangs before its first prompt still settle
   });
 
   it('rejects with the exit code and stderr when Kimi exits 1 at startup', async () => {
-    const { session, events } = start(fakeKimi(`process.stderr.write('config.toml is broken\\n'); process.exit(1);`));
+    const failures: ExecutorFailure[] = [];
+    const { session, events } = start(
+      fakeKimi(`process.stderr.write('config.toml is broken\\n'); process.exit(1);`),
+      { executorAccountId: 'moonshot', onExecutorFailure: (failure) => failures.push(failure) },
+    );
     await expect(session.result).rejects.toThrow(/exited with code 1 — config\.toml is broken/);
     expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ executor: { provider: 'kimi', accountId: 'moonshot' } });
   });
 
   it('rejects when Kimi exits 0 without ever starting a session', async () => {

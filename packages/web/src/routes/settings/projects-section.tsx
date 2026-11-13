@@ -270,7 +270,7 @@ function RegistryTable({
   return (
     <SettingsField
       title="Registered projects"
-      hint={`The folders you have added. While this list is empty the folder cezar is serving is listed as “not registered” with an Add button; once you have projects, starting cezar somewhere new neither registers nor lists that folder — use “Add project” when you want to keep it. “Tags” group connected repositories — give the API, the web app and the design system a shared “storefront” tag and the global Tasks page can show all three as one piece of work. “Max parallel” caps how many of that project's tasks run at once (leave it empty to inherit the workspace limit); the workspace limit (${workspaceMax}) still applies as an overall ceiling, so a per-project value above it has no extra effect until the workspace limit is raised. Removing a project only unregisters it — no files on disk are deleted.`}
+      hint={`The folders you have added. While this list is empty the folder cezar is serving is listed as “not registered” with an Add button; once you have projects, starting cezar somewhere new neither registers nor lists that folder — use “Add project” when you want to keep it. “Tags” group connected repositories — give the API, the web app and the design system a shared “storefront” tag and the global Tasks page can show all three as one piece of work. “Max parallel” caps how many of that project's tasks run at once (the empty default is 1); the workspace limit (${workspaceMax}) still applies as an overall ceiling, so a per-project value above it has no extra effect until the workspace limit is raised. Removing a project only unregisters it — no files on disk are deleted.`}
     >
       {/* Defensive: `GET /api/v1/projects` names at least the folder this server is serving
           whenever the registry is empty (the unregistered row), and the registry's own rows
@@ -388,7 +388,7 @@ function ProjectRow({
         {project.unregistered ? (
           <span className="text-label text-soft-foreground">—</span>
         ) : (
-          <MaxParallelStepper project={project} workspaceMax={workspaceMax} />
+          <MaxParallelStepper project={project} />
         )}
       </td>
       <td className="px-3 py-2 tabular-nums text-soft-foreground">
@@ -737,7 +737,7 @@ export function ProjectTagsEditor({
 
 /**
  * Per-project "Max parallel tasks" stepper (spec 2026-07-22). An empty field is
- * the unset default — it inherits the workspace limit, which the placeholder
+ * the unset default — one active task for the project, which the placeholder
  * names; `1..16` pins a per-project ceiling. Bound to the server value
  * (`project.maxParallel`) and saved on commit, mirroring the workspace
  * `Max parallel` control (resources-section.tsx) — a failed save reverts to the
@@ -747,10 +747,8 @@ export function ProjectTagsEditor({
  */
 export function MaxParallelStepper({
   project,
-  workspaceMax,
 }: {
   project: ProjectListEntry
-  workspaceMax: number
 }) {
   const update = useUpdateProject()
   return (
@@ -761,8 +759,8 @@ export function MaxParallelStepper({
       min={MAX_PARALLEL_MIN}
       max={MAX_PARALLEL_MAX}
       allowEmpty
-      emptyStepFrom={Math.min(MAX_PARALLEL_MAX, Math.max(MAX_PARALLEL_MIN, workspaceMax))}
-      placeholder={`Inherit (${workspaceMax})`}
+      emptyStepFrom={1}
+      placeholder="Default (1)"
       className="w-40"
       onCommit={(next) =>
         update.mutateAsync(
@@ -771,7 +769,7 @@ export function MaxParallelStepper({
             onSuccess: () =>
               toast(
                 next === null
-                  ? `${project.name} inherits the workspace limit (${workspaceMax})`
+                  ? `${project.name} uses the default limit (1)`
                   : `${project.name} runs at most ${next} task${next === 1 ? '' : 's'} at a time`,
               ),
             onError: (error: Error) => toast(error.message, { tone: 'danger' }),

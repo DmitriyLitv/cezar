@@ -454,6 +454,15 @@ describe('graph system nodes', () => {
     expect(after).toHaveLength(2);
     expect(after.find((c) => c.id === correctness.id)).toBeDefined();
     expect(after.find((c) => c.title === 'tests' && c.id !== tests.id)).toBeDefined();
+
+    // Phase 0 characterization: recovery is idempotent after completion and cannot duplicate a
+    // child whose graph output already won the crash race.
+    manager.dispose();
+    manager = new RunManager(store, repoRoot);
+    await manager.recover();
+    const afterSecondRecovery = store.listRuns().filter((r) => r.dispatch?.parentRunId === id);
+    expect(afterSecondRecovery).toHaveLength(2);
+    expect(afterSecondRecovery.find((c) => c.id === correctness.id)).toBeDefined();
   }, 70_000);
 
   it('a restart right after a fork\'s first branch is refused does not re-dispatch it (#1322)', async () => {

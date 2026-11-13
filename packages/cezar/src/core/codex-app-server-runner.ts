@@ -41,6 +41,7 @@ import {
 import { armInactivityDeadline, inactivityTimeoutMessage } from './inactivity-deadline.ts';
 import { explainCodexModelError } from './agent-errors.ts';
 import { holdForOwnShutdown, ownShutdownExitMessage, ownSignalBehindExit, watchOwnSignals } from './process-signals.ts';
+import { emitExecutorFailure } from './executor-failure.ts';
 
 export interface CodexRunnerOptions {
   /** Override the binary name/path; defaults to `codex` on PATH. */
@@ -209,7 +210,9 @@ class CodexSession implements AgentSession {
       this.child = spawnCodexAppServer(bin, spec.cwd, spec.env);
       this.rpc = new CodexAppServerRpc(this.child);
     } catch (err) {
-      throw codexSpawnError(err, bin);
+      const failure = codexSpawnError(err, bin);
+      emitExecutorFailure(spec.onExecutorFailure, { provider: 'codex', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message: failure.message });
+      throw failure;
     }
 
     this.hasExited = trackChildExit(this.child);
@@ -294,8 +297,15 @@ class CodexSession implements AgentSession {
         if (this.hardKillTimer) clearTimeout(this.hardKillTimer);
       this.rpc.rejectPending();
 
-      if (this.spawnFailed) throw this.spawnFailed;
-      if (sessionError) throw sessionError;
+      if (this.spawnFailed) {
+        emitExecutorFailure(spec.onExecutorFailure, { provider: 'codex', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message: this.spawnFailed.message });
+        throw this.spawnFailed;
+      }
+      if (sessionError) {
+        const message = sessionError instanceof Error ? sessionError.message : String(sessionError);
+        emitExecutorFailure(spec.onExecutorFailure, { provider: 'codex', ...(spec.executorAccountId ? { accountId: spec.executorAccountId } : {}), message });
+        throw sessionError;
+      }
 
       // Timeout/interrupt can end the read loop mid-item — recover buffered prose.
       this.textCoalescer.flush();
@@ -723,6 +733,9 @@ class CodexSession implements AgentSession {
   }
 
   private emit(event: AgentEvent): void {
+    if (event.type === 'error') {
+      emitExecutorFailure(this.spec.onExecutorFailure, { provider: 'codex', ...(this.spec.executorAccountId ? { accountId: this.spec.executorAccountId } : {}), message: event.message });
+    }
     this.onEvent?.(event);
   }
 

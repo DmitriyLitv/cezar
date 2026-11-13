@@ -29,6 +29,7 @@ import {
 import type { UsageWindowsObservation } from '@open-mercato/cezar-contract';
 import type { UiEvent } from './ui-events.ts';
 import type { PrivateMcpServer } from './private-mcp.ts';
+import type { ExecutorFailure } from './executor-failure.ts';
 
 /**
  * The user-selectable runners (what config/GUI expose), in display order. The set is written down
@@ -53,6 +54,10 @@ export function isRunnerId(value: string): value is RunnerId {
 export interface AgentRunSpec {
   /** Optional account usage metadata from ordinary activity. Bind to the resolved step account. */
   onUsageWindows?: (observation: UsageWindowsObservation) => void;
+  /** Optional normalized terminal-failure observation. Additive: v1/v2 error events are unchanged. */
+  onExecutorFailure?: (failure: ExecutorFailure) => void;
+  /** Opaque resolved Cezar account id attached to failure observations; never forwarded to a CLI. */
+  executorAccountId?: string;
   /** Appended to the CLI's default system prompt (`--append-system-prompt`). */
   systemPrompt?: string;
   userPrompt: string;

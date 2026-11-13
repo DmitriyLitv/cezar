@@ -42,8 +42,9 @@ Three words, no jargon — **task**, **skill**, **chain**:
 Five moves that make the cockpit worth the browser tab:
 
 - 🗃️ **Queue + orchestration.** Start as many tasks as you like: cezar runs up to
-  `maxParallel` at once across every project (default **2**; a non-git directory
-  always runs one) and
+  `maxParallel` at once across every project (default **2**), with one active task
+  per project by default (an explicit project limit can raise it; a live task waiting for input keeps
+  its project slot while releasing global capacity; a non-git directory always runs one), and
   holds the rest in a FIFO queue with visible positions (`#1`, `#2`, …). Cancel a
   queued task before it starts, or press **Run First** on its waiting screen to move it to the
   front so it takes the first free slot. It still waits for that slot and never goes past

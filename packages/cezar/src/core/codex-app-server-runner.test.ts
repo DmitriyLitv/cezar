@@ -11,6 +11,7 @@ import { KILL_GRACE_MS } from './claude-cli-runner.js';
 import { CodexAppServerRunner, codexThreadOverrides, userInputAnswers } from './codex-app-server-runner.js';
 import { recordOwnSignal, resetOwnSignalsForTests } from './process-signals.ts';
 import { RunStore } from '../runs/store.ts';
+import type { ExecutorFailure } from './executor-failure.ts';
 
 const MOCK_BIN = fileURLToPath(
   new URL('./__fixtures__/codex/mock-codex-app-server.mjs', import.meta.url),
@@ -143,8 +144,14 @@ describe('a teardown cezar initiated (codex app-server)', () => {
   it('surfaces a turn/completed whose status is failed as an AgentEvent error', async () => {
     const runner = new CodexAppServerRunner({ bin: MOCK_BIN, timeoutMs: 0 });
     const events: AgentEvent[] = [];
+    const failures: ExecutorFailure[] = [];
     const session = runner.startSession(
-      { userPrompt: 'mock:turn-completed-failed', cwd: process.cwd() },
+      {
+        userPrompt: 'mock:turn-completed-failed',
+        cwd: process.cwd(),
+        executorAccountId: 'work',
+        onExecutorFailure: (failure) => failures.push(failure),
+      },
       (event) => events.push(event),
       { autoEndAfterFirstTurn: true },
     );
@@ -153,6 +160,8 @@ describe('a teardown cezar initiated (codex app-server)', () => {
 
     expect(events).toContainEqual({ type: 'error', message: "The 'fable' model is not supported [other]" });
     expect(events).toContainEqual({ type: 'turn-end' });
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ executor: { provider: 'codex', accountId: 'work' } });
   }, 15_000);
 
   it.each([

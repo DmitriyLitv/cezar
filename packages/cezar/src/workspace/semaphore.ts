@@ -51,9 +51,8 @@ export interface WorkspaceResourceLimits {
   /**
    * Per-project concurrency ceilings, keyed by realpath-normalized project
    * root (the registry stores normalized `root`). A root absent from the map
-   * inherits the workspace `maxParallel`. Optional so older `load` stubs that
-   * only return the resource slice keep working — an absent map means "no
-   * project has an override", i.e. every project inherits.
+   * uses the safe project default of one active AI execution. Optional so
+   * older `load` stubs that only return the resource slice keep working.
    */
   projectLimits?: ReadonlyMap<string, number>;
 }
@@ -131,6 +130,9 @@ const DEFAULT_LIMITS: WorkspaceResourceLimits = {
   autoResumeOnUsageLimit: true,
   memoryLimitMb: null,
 };
+
+/** Ordinary tasks and future graph-backed tasks share one project execution slot by default. */
+export const DEFAULT_PROJECT_MAX_PARALLEL = 1;
 
 /** Production loader: the `resources` slice of `~/.cezar/config.json`
  *  (schema-defaulted, so a missing/corrupt file yields the zero-config
@@ -334,17 +336,18 @@ export class WorkspaceSemaphore {
 
   /**
    * The effective per-project concurrency cap for a manager's repo root: the
-   * project's own `maxParallel` if set in the registry, else the workspace cap
-   * (`maxParallel()`). Answered from the cached snapshot — the class's
+   * project's own `maxParallel` if set in the registry, else one. The workspace
+   * cap remains independent, so different projects may fill its available slots.
+   * Answered from the cached snapshot — the class's
    * no-per-tick-file-read invariant is preserved; the only syscall is a
    * `realpathSync` to key the lookup the same way the registry normalizes
    * `root` (once per `pump()`, alongside the existing `getRepoInfo` stat). A
-   * root with no registry entry (an ad-hoc run outside the registry) has no
-   * override and inherits the workspace cap.
+   * root with no registry entry (an ad-hoc run outside the registry) receives
+   * the same single-project default.
    */
   projectMaxParallel(repoRoot: string): number {
     const override = this.limits.projectLimits?.get(normalizeRootSync(repoRoot));
-    return override ?? this.maxParallel();
+    return override ?? DEFAULT_PROJECT_MAX_PARALLEL;
   }
 
   /**
