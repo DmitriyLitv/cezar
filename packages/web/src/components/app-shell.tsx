@@ -106,7 +106,7 @@ export type AppShellProps = {
   whatsNew?: ReactNode
   /** Step 4.2's Tools dropdown trigger. */
   toolsMenu?: ReactNode
-  /** Footer: the way to Settings > Connect a phone, beside the gear. Gates itself. */
+  /** Footer: a row opening Settings > Connect a phone, above the controls. Gates itself. */
   connectPhone?: ReactNode
   /** Forge gating (R6 Step 1.1): `false` drops the GitHub nav item — see `visibleNavItems`.
    *  Defaults to shown so the presentational shell stays renderable alone; the container
@@ -996,6 +996,8 @@ function SidebarContent({
             <CommandPaletteHint />
           </>
         )}
+        {/* Its own row: the controls row has no width left for another control (#702). */}
+        {connectPhone}
         <div data-slot="sidebar-footer-controls" className="flex items-center gap-2">
           {/* SLOT — Step 4.2 mounts the Tools dropdown (aggregate status dot + tool versions) here. */}
           <div data-slot="tools-menu" className="shrink-0">
@@ -1003,10 +1005,7 @@ function SidebarContent({
           </div>
           {version ? <VersionChip version={version} latestVersion={latestVersion} brandName={brandName} /> : null}
           {starCount === null ? null : <StarChip count={starCount} />}
-          {/* A spacer, not a wrapper: every control stays a sibling in the one row (#702). */}
-          <span aria-hidden="true" className="ml-auto" />
-          {connectPhone}
-          <GlobalSettingsLink onNavigate={onNavigate} />
+          <GlobalSettingsLink onNavigate={onNavigate} className="ml-auto" />
           <ThemeToggle />
         </div>
       </div>
