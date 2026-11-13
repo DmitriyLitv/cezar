@@ -292,6 +292,22 @@ describe('AppShell', () => {
       expect(gear.closest('a,button')?.parentElement).toBe(row)
     })
 
+    it('puts the Phones icon left of the gear, both siblings in the one row, and lets the version give way first', () => {
+      renderShell('/', { version: '1.2.3', toolsMenu: <button type="button">Tools</button>, phonesLink: <a href="/settings/global/phones" data-slot="phones-link">Phones</a> })
+      const row = controls()
+      const phones = row.querySelector('[data-slot="phones-link"]') as HTMLElement
+      const gear = row.querySelector('[data-slot="global-settings-link"]') as HTMLElement
+      expect(phones.parentElement).toBe(row)
+      expect(gear.closest('a,button')?.parentElement).toBe(row)
+      expect(phones.nextElementSibling).toBe(gear.closest('a,button'))
+      // The gear keeps ml-auto unless the icon before it took it; the version hides only on a narrow row.
+      expect(gear.className).toContain('md:[[data-slot=phones-link]+&]:ml-0')
+      expect(row.className).toContain('@container/controls')
+      const version = row.querySelector('[data-slot="version-chip"]') as HTMLElement
+      expect(version.className).toMatch(/\bmin-w-0\b/)
+      expect(version.className).toContain('@max-[17.5rem]/controls:group-has-[[data-slot=phones-link]]/controls:[&:not([data-update-available])]:hidden')
+    })
+
     it('renders search as a full-width launcher that still opens the palette', () => {
       renderShell()
       // Named by its own visible label, not by an aria-label that would diverge from it

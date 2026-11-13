@@ -108,6 +108,8 @@ export type AppShellProps = {
   toolsMenu?: ReactNode
   /** Footer: a row opening Settings > Connect a phone, above the controls. Gates itself. */
   connectPhone?: ReactNode
+  /** Footer controls: the Phones icon left of the gear, once a phone is paired. Gates itself. */
+  phonesLink?: ReactNode
   /** Forge gating (R6 Step 1.1): `false` drops the GitHub nav item — see `visibleNavItems`.
    *  Defaults to shown so the presentational shell stays renderable alone; the container
    *  passes the health payload's truth. */
@@ -228,6 +230,7 @@ export const AppShell = React.memo(function AppShell({
   whatsNew,
   toolsMenu,
   connectPhone,
+  phonesLink,
   forgeAvailable = true,
   inboxAvailable = true,
   automationsAvailable = true,
@@ -327,6 +330,7 @@ export const AppShell = React.memo(function AppShell({
     whatsNew,
     toolsMenu,
     connectPhone,
+    phonesLink,
     projectGroups,
     singleProject,
     brandName,
@@ -475,6 +479,7 @@ type NavProps = {
   whatsNew?: ReactNode
   toolsMenu?: ReactNode
   connectPhone?: ReactNode
+  phonesLink?: ReactNode
   projectGroups?: ReactNode
   brandName: string
   brandLogoUrl: string | null
@@ -790,6 +795,7 @@ function SidebarContent({
   whatsNew,
   toolsMenu,
   connectPhone,
+  phonesLink,
   projectGroups,
   singleProject,
   brandName,
@@ -998,14 +1004,17 @@ function SidebarContent({
         )}
         {/* Its own row: the controls row has no width left for another control (#702). */}
         {connectPhone}
-        <div data-slot="sidebar-footer-controls" className="flex items-center gap-2">
+        {/* A named container: at the narrowest widths the version chip gives way first (below). */}
+        <div data-slot="sidebar-footer-controls" className="group/controls @container/controls flex items-center gap-1.5">
           {/* SLOT — Step 4.2 mounts the Tools dropdown (aggregate status dot + tool versions) here. */}
           <div data-slot="tools-menu" className="shrink-0">
             {toolsMenu}
           </div>
           {version ? <VersionChip version={version} latestVersion={latestVersion} brandName={brandName} /> : null}
           {starCount === null ? null : <StarChip count={starCount} />}
-          <GlobalSettingsLink onNavigate={onNavigate} className="ml-auto" />
+          {phonesLink}
+          {/* Pushes itself right unless the Phones icon before it already did. */}
+          <GlobalSettingsLink onNavigate={onNavigate} className="ml-auto md:[[data-slot=phones-link]+&]:ml-0" />
           <ThemeToggle />
         </div>
       </div>
@@ -1240,7 +1249,9 @@ export function VersionChip({ version, latestVersion, brandName }: { version: st
         title={updateAvailable ? `v${version} — update available: v${latestVersion}` : `v${version}`}
         aria-label={updateAvailable ? `${brandName} v${version}, update to v${latestVersion} available — open updater` : `${brandName} v${version} — open updater`}
         onClick={() => setOpen(true)}
-        className="flex min-w-0 cursor-pointer items-center gap-1 rounded-full border border-border px-1.5 py-px font-mono text-micro font-medium text-soft-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        // Shrinks first. With the Phones icon in a row too narrow to show even "v0.2…", it gives way
+        // entirely, unless it has an update to announce (spec 2026-11-01-relay-qr-pairing).
+        className="flex min-w-0 cursor-pointer items-center gap-1 rounded-full border border-border px-1.5 py-px font-mono text-micro font-medium text-soft-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 md:@max-[17.5rem]/controls:group-has-[[data-slot=phones-link]]/controls:[&:not([data-update-available])]:hidden"
       >
         {updateAvailable ? <StatusDot tone="pending" pulse className="size-[5px] shrink-0" /> : null}
         <span className="truncate">v{version}</span>
