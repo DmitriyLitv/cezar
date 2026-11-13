@@ -13,7 +13,7 @@ import { HostUsageWidget } from '@/components/host-usage-widget'
 import { ProviderBannerContainer } from '@/components/provider-banner-container'
 import { ConnectionBanner } from '@/components/cache-status'
 import { TelemetryConsentBanner } from '@/components/telemetry-consent'
-import { RelayAccountPrompt } from '@/components/relay-account-prompt'
+import { RelayAccountNotice } from '@/components/relay-account-notice'
 import { ProjectGroups } from '@/components/project-groups'
 import { TaskQuickListContainer } from '@/components/task-quick-list'
 import { ToolsMenu } from '@/components/tools-menu'
@@ -180,9 +180,9 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
           },
     [globalSettings, projectId, bootProjectId, projectName, registry?.projects],
   )
-  const banner = useMemo(() => <><ConnectionBanner /><ProviderBannerContainer /></>, [])
+  const banner = useMemo(() => <><ConnectionBanner /><ProviderBannerContainer /><RelayAccountNotice /></>, [])
   // The opt-in ask (docs/telemetry.md): renders nothing once this machine has answered.
-  const footerBanner = useMemo(() => <><TelemetryConsentBanner /><RelayAccountPrompt /></>, [])
+  const footerBanner = useMemo(() => <TelemetryConsentBanner />, [])
   const taskQuickList = useMemo(() => <TaskQuickListContainer />, [])
   // The sidebar glance. Created here, not inside `AppShell`, because the shell stays presentational
   // and QueryClient-free: the widget's own wrapper evaluates the viewport and transport gates and
