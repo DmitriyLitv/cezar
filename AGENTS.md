@@ -1,5 +1,20 @@
 # AGENTS.md — working in this repository
 
+## Instruction precedence and project memory
+
+This repository-root file is the authoritative AGENTS.md for the whole project. Do not add nested
+AGENTS.md files that override it; keep narrow, durable subsystem guidance in maintained docs or in
+MemoryServer instead.
+
+Use MemoryServer with `projectId: cezar_shell` as the project's long-term memory:
+
+- Before starting a task, retrieve relevant context with `memory_context`; use `memory_search` for
+  targeted searches.
+- Record durable architectural decisions, conventions, contracts, and verified facts with
+  `memory_add`.
+- Correct an existing entry with `memory_update` instead of creating a duplicate.
+- Do not store secrets, temporary details, or unverified assumptions.
+
 cezar is a **parallel coding-agents orchestrator**: a local cockpit (CLI + browser GUI) for running and tracking AI coding-agent tasks in a repo. You type a task, pick a workflow and a backend — Claude Code, Codex or OpenCode (experimental), or a mix per step — and watch it work live: steps, tool calls, tokens, diffs. Each task runs in its own git worktree, ends at a review gate (never auto-merges), and can be pushed as a draft PR through `gh`. Everything is local: no accounts, no database, no cloud — state is plain JSON, NDJSON and Markdown under `.ai/cezar/`. The server stack stays deliberately small: strict TypeScript (ESM, Node 20+), Hono + SSE, Zod at every boundary, and YAML workflows. The cockpit is React 19 + Vite + Tailwind v4 + shadcn/ui, compiled to static assets (the legacy vanilla UI was retired in R7). Every module is meant to be read in one sitting.
 
 ## Zero config
