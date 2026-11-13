@@ -226,6 +226,10 @@ export const runRecordSchema = z.object({
    *  group-pick winner-park read it). Additive-safe: absent = falsy = not
    *  autonomous. Set at creation from `WorkflowInput.autonomous`. */
   autonomous: z.boolean().optional(),
+  /** Optional provenance for the one root run created from an approved Super Task plan.
+   *  Additive only: legacy standalone task records remain unchanged and parse without it. */
+  superTaskId: z.string().optional(),
+  planRevision: z.number().int().positive().optional(),
   /** Optional provenance for tasks launched by a project GitHub automation. */
   automation: z
     .object({

@@ -28,6 +28,11 @@ describe('ensureDataGitignore', () => {
     expect(gitignore().split('\n')).toContain('drafts/');
   });
 
+  it('ignores Super Task aggregates and audit transcripts', () => {
+    ensureDataGitignore(repoRoot);
+    expect(gitignore().split('\n')).toEqual(expect.arrayContaining(['super-tasks.json', 'super-tasks/']));
+  });
+
   it('ignores the attachment library — user uploads must never reach a user’s git status', () => {
     // The blocker this case exists for, pinned by name so a revert is loud rather than quiet:
     // the entries under `attachments/` are files the user uploaded, so a missing line is one
