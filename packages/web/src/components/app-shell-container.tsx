@@ -14,6 +14,7 @@ import { ProviderBannerContainer } from '@/components/provider-banner-container'
 import { ConnectionBanner } from '@/components/cache-status'
 import { TelemetryConsentBanner } from '@/components/telemetry-consent'
 import { RelayAccountNotice } from '@/components/relay-account-notice'
+import { ConnectPhoneLink } from '@/components/connect-phone-link'
 import { ProjectGroups } from '@/components/project-groups'
 import { TaskQuickListContainer } from '@/components/task-quick-list'
 import { ToolsMenu } from '@/components/tools-menu'
@@ -220,6 +221,7 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
   // The active project's forge, not the boot folder's (#1410) — feeds the flat nav and the note.
   const activeForge = useActiveForge()
   const toolsMenu = useMemo(() => <ToolsMenu health={health.data} forge={activeForge} />, [health.data, activeForge])
+  const connectPhone = useMemo(() => <ConnectPhoneLink />, [])
 
   return (
     // The Active/Archived filter is shared by the quick-list below and the Tasks table (Step 3.4),
@@ -256,6 +258,7 @@ export const AppShellContainer = memo(function AppShellContainer({ children }: {
         banner={banner}
         whatsNew={whatsNew}
         footerBanner={footerBanner}
+        connectPhone={connectPhone}
         singleProject={health.data?.capabilities.singleProject === true}
         taskQuickList={taskQuickList}
         hostWidget={hostWidget}

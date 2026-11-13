@@ -106,6 +106,8 @@ export type AppShellProps = {
   whatsNew?: ReactNode
   /** Step 4.2's Tools dropdown trigger. */
   toolsMenu?: ReactNode
+  /** Footer: the way to Settings > Connect a phone, beside the gear. Gates itself. */
+  connectPhone?: ReactNode
   /** Forge gating (R6 Step 1.1): `false` drops the GitHub nav item — see `visibleNavItems`.
    *  Defaults to shown so the presentational shell stays renderable alone; the container
    *  passes the health payload's truth. */
@@ -225,6 +227,7 @@ export const AppShell = React.memo(function AppShell({
   hostWidget,
   whatsNew,
   toolsMenu,
+  connectPhone,
   forgeAvailable = true,
   inboxAvailable = true,
   automationsAvailable = true,
@@ -323,6 +326,7 @@ export const AppShell = React.memo(function AppShell({
     hostWidget,
     whatsNew,
     toolsMenu,
+    connectPhone,
     projectGroups,
     singleProject,
     brandName,
@@ -470,6 +474,7 @@ type NavProps = {
   hostWidget?: ReactNode
   whatsNew?: ReactNode
   toolsMenu?: ReactNode
+  connectPhone?: ReactNode
   projectGroups?: ReactNode
   brandName: string
   brandLogoUrl: string | null
@@ -784,6 +789,7 @@ function SidebarContent({
   hostWidget,
   whatsNew,
   toolsMenu,
+  connectPhone,
   projectGroups,
   singleProject,
   brandName,
@@ -997,7 +1003,10 @@ function SidebarContent({
           </div>
           {version ? <VersionChip version={version} latestVersion={latestVersion} brandName={brandName} /> : null}
           {starCount === null ? null : <StarChip count={starCount} />}
-          <GlobalSettingsLink onNavigate={onNavigate} className="ml-auto" />
+          {/* A spacer, not a wrapper: every control stays a sibling in the one row (#702). */}
+          <span aria-hidden="true" className="ml-auto" />
+          {connectPhone}
+          <GlobalSettingsLink onNavigate={onNavigate} />
           <ThemeToggle />
         </div>
       </div>
